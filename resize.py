@@ -6,7 +6,18 @@ import subprocess
 from sys import exit
 
 
-def main(args: argparse.Namespace):
+class Args(argparse.Namespace):
+    files: list[str] = []
+    top: float = 0.01
+    bottom: float = 0.02
+    side: float = 0.01
+    top_wide: float = 0.45
+    bottom_wide: float = 0.55
+    ratio: float = 4 / 5
+    output_dir: str = "./resized"
+
+
+def main(args: Args):
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -32,7 +43,7 @@ def run_async(f):
     async def wrapped(*args, **kwargs):
         return await asyncio.to_thread(f, *args, **kwargs)
 
-    return wrapped
+    return wrapped  # pyright: ignore[reportUnknownVariableType]
 
 
 @run_async
@@ -129,22 +140,18 @@ def add_top_bottom_border(
     )
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> Args:
     parser = argparse.ArgumentParser()
-    parser.add_argument("files", type=str, nargs="+")
-    parser.add_argument("--top", type=float, default=0.01)
-    parser.add_argument("--bottom", type=float, default=0.02)
-    parser.add_argument("--side", type=float, default=0.01)
-    parser.add_argument("--top-wide", type=float, default=0.45)
-    parser.add_argument("--bottom-wide", type=float, default=0.55)
-    parser.add_argument("--ratio", type=float, default=4 / 5)
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="./resized",
-    )
+    parser.add_argument("files", type=str, nargs="+")  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--top", type=float, default=Args.top)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--bottom", type=float, default=Args.bottom)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--side", type=float, default=Args.side)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--top-wide", type=float, default=Args.top_wide)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--bottom-wide", type=float, default=Args.bottom_wide)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--ratio", type=float, default=Args.ratio)  # pyright: ignore[reportUnusedCallResult]
+    parser.add_argument("--output_dir", type=str, default=Args.output_dir)  # pyright: ignore[reportUnusedCallResult]
 
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=Args())
     assert (args.top_wide + args.bottom_wide) == 1
     return args
 
