@@ -1,8 +1,13 @@
-.PHONY: all clean
+.PHONY: link
+link:
+	cargo build --release
 
-all:
-	python3 resize.py *.jpg
+.PHONY: build
+build:
+	cargo build --release
 
+.PHONY: clean
 clean:
 	rm -f *.jpg
 	rm -rf resized
+	cargo clean
