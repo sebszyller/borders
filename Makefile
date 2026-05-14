@@ -1,6 +1,7 @@
 .PHONY: link
 link:
 	cargo build --release
+	ln -sf $(PWD)/target/release/borders ~/.local/bin/borders
 
 .PHONY: build
 build:

@@ -1,10 +1,10 @@
 [package]
-name = "ig-resize"
+name = "borders"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "ig-resize"
+name = "borders"
 path = "src/main.rs"
 
 [dependencies]
