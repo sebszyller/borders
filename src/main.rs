@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use image::{imageops, Rgba, RgbaImage};
+use image::{codecs::jpeg::JpegEncoder, imageops, Rgba, RgbaImage};
 use std::path::{Path, PathBuf};
 use tracing::{info, warn};
 
@@ -29,6 +29,9 @@ struct Args {
 
     #[arg(long, default_value = "with_borders")]
     output_dir: String,
+
+    #[arg(long, default_value_t = 100)]
+    quality: u8,
 }
 
 fn add_border(img: &RgbaImage, left: u32, right: u32, top: u32, bottom: u32) -> RgbaImage {
@@ -48,6 +51,7 @@ fn process(
     top_wide: f64,
     bottom_wide: f64,
     ratio: f64,
+    quality: u8,
 ) -> Result<()> {
     let input_path = Path::new(file);
     let output_path = output_dir.join(input_path.file_name().context("no filename")?);
@@ -81,10 +85,25 @@ fn process(
         add_border(&with_tb, side_border, side_border, 0, 0)
     };
 
-    image::DynamicImage::ImageRgba8(result)
-        .into_rgb8()
-        .save(&output_path)
-        .with_context(|| format!("failed to save to {}", output_path.display()))?;
+    let rgb = image::DynamicImage::ImageRgba8(result).into_rgb8();
+    let ext = output_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "jpg" | "jpeg" => {
+            let mut f = std::fs::File::create(&output_path)
+                .with_context(|| format!("failed to create {}", output_path.display()))?;
+            JpegEncoder::new_with_quality(&mut f, quality)
+                .encode_image(&rgb)
+                .with_context(|| format!("failed to save to {}", output_path.display()))?;
+        }
+        _ => {
+            rgb.save(&output_path)
+                .with_context(|| format!("failed to save to {}", output_path.display()))?;
+        }
+    }
 
     info!("Saved to {}", output_path.display());
     Ok(())
@@ -115,6 +134,7 @@ fn main() -> Result<()> {
             args.top_wide,
             args.bottom_wide,
             args.ratio,
+            args.quality,
         ) {
             warn!("error processing {file}: {e:#}");
         }
