@@ -1,11 +1,11 @@
-.PHONY: link
-link:
+.PHONY: install
+install:
 	cargo build --release
 	ln -sf $(PWD)/target/release/borders $(HOME)/.local/bin/borders
 
 .PHONY: build
 build:
-	cargo build --release
+	cargo build
 
 .PHONY: clean
 clean:
