@@ -12,15 +12,8 @@ impl FromStr for HexColor {
     type Err = String;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let hex = s.trim_start_matches('#');
-        if hex.len() != 6 {
-            return Err(format!("expected 6-digit hex, got '{s}'"));
-        }
-        let r = u8::from_str_radix(&hex[0..2], 16).map_err(|_| format!("invalid red in '{s}'"))?;
-        let g =
-            u8::from_str_radix(&hex[2..4], 16).map_err(|_| format!("invalid green in '{s}'"))?;
-        let b = u8::from_str_radix(&hex[4..6], 16).map_err(|_| format!("invalid blue in '{s}'"))?;
-        Ok(HexColor(Rgba([r, g, b, 255])))
+        let n = u32::from_str_radix(s, 16).map_err(|e| e.to_string())?;
+        Ok(HexColor(Rgba([(n >> 16) as u8, (n >> 8) as u8, n as u8, 255])))
     }
 }
 
