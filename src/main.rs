@@ -25,7 +25,7 @@ impl FromStr for HexColor {
 }
 
 #[derive(Parser)]
-#[command(about = "Add borders to images for Instagram")]
+#[command(about = "Add borders to images.")]
 struct Args {
     /// Input image files to process
     files: Vec<String>,

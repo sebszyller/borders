@@ -1,7 +1,7 @@
 .PHONY: link
 link:
 	cargo build --release
-	ln -sf $(PWD)/target/release/borders ~/.local/bin/borders
+	ln -sf $(PWD)/target/release/borders $(HOME)/.local/bin/borders
 
 .PHONY: build
 build:
@@ -9,6 +9,4 @@ build:
 
 .PHONY: clean
 clean:
-	rm -f *.jpg
-	rm -rf resized
 	cargo clean
