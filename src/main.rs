@@ -3,7 +3,7 @@ use clap::Parser;
 use image::{codecs::jpeg::JpegEncoder, imageops, Rgba, RgbaImage};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use tracing::{info, warn};
+use tracing::{error, info};
 
 #[derive(Clone, Copy)]
 struct HexColor(Rgba<u8>);
@@ -13,57 +13,54 @@ impl FromStr for HexColor {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let n = u32::from_str_radix(s, 16).map_err(|e| e.to_string())?;
-        Ok(HexColor(Rgba([(n >> 16) as u8, (n >> 8) as u8, n as u8, 255])))
+        Ok(HexColor(Rgba([
+            (n >> 16) as u8,
+            (n >> 8) as u8,
+            n as u8,
+            255,
+        ])))
     }
 }
 
 #[derive(Parser)]
 #[command(about = "Add borders to images.")]
 struct Args {
-    /// Input image files to process
     files: Vec<String>,
 
     #[arg(
         long,
-        default_value_t = 0.01,
-        help = "Top border as a fraction of image height (portrait)"
-    )]
-    top: f64,
-
-    #[arg(
-        long,
         default_value_t = 0.02,
-        help = "Bottom border as a fraction of image height (portrait)"
+        help = "Left/right borders as a fraction of image height"
     )]
-    bottom: f64,
+    default_horizontal: f64,
 
     #[arg(
         long,
-        default_value_t = 0.01,
-        help = "Side border as a fraction of image width (landscape)"
+        default_value_t = 0.03,
+        help = "Top/bottom borders as a fraction of image width"
     )]
-    side: f64,
+    default_vertical: f64,
 
     #[arg(
         long,
         default_value_t = 0.45,
-        help = "Fraction of vertical border placed on top (landscape); must sum to 1.0 with --bottom-wide"
+        help = "Fraction of vertical border placed on top; must sum to 1.0 with --fraction_top"
     )]
-    top_wide: f64,
+    fraction_top: f64,
 
     #[arg(
         long,
         default_value_t = 0.55,
-        help = "Fraction of vertical border placed on bottom (landscape); must sum to 1.0 with --top-wide"
+        help = "Fraction of vertical border placed on bottom; must sum to 1.0 with --fraction_bottom"
     )]
-    bottom_wide: f64,
+    fraction_bottom: f64,
 
     #[arg(
         long,
         default_value_t = 0.8,
         help = "Target aspect ratio (width/height) for the output image"
     )]
-    ratio: f64,
+    target_ratio: f64,
 
     #[arg(
         long,
@@ -105,12 +102,11 @@ fn add_border(
 fn process(
     file: &str,
     output_dir: &Path,
-    top: f64,
-    bottom: f64,
-    side: f64,
-    top_wide: f64,
-    bottom_wide: f64,
-    ratio: f64,
+    default_horizontal: f64,
+    default_vertical: f64,
+    fraction_top: f64,
+    fraction_bottom: f64,
+    target_ratio: f64,
     quality: u8,
     color: Rgba<u8>,
 ) -> Result<()> {
@@ -126,21 +122,23 @@ fn process(
     let width = img.width();
     let height = img.height();
 
-    let result = if width >= height {
-        let border = (width as f64 * side) as u32;
-        let with_sides = add_border(&img, border, border, 0, 0, color);
+    let border = (width as f64 * (default_horizontal / 2.0)) as u32;
+    let with_sides = add_border(&img, border, border, 0, 0, color);
+    let current_ratio = with_sides.width() as f64 / height as f64;
+
+    let result = if current_ratio >= target_ratio {
         let new_width = with_sides.width();
-        let new_height = (new_width as f64 / ratio) as u32;
+        let new_height = (new_width as f64 / target_ratio) as u32;
         let total_border = new_height.saturating_sub(height);
-        let border_top = (total_border as f64 * top_wide) as u32;
-        let border_bottom = (total_border as f64 * bottom_wide) as u32;
+        let border_top = (total_border as f64 * fraction_top) as u32;
+        let border_bottom = (total_border as f64 * fraction_bottom) as u32;
         add_border(&with_sides, 0, 0, border_top, border_bottom, color)
     } else {
-        let border_top = (height as f64 * top) as u32;
-        let border_bottom = (height as f64 * bottom) as u32;
+        let border_top = (height as f64 * default_vertical * fraction_top) as u32;
+        let border_bottom = (height as f64 * default_vertical * fraction_bottom) as u32;
         let with_tb = add_border(&img, 0, 0, border_top, border_bottom, color);
         let new_height = with_tb.height();
-        let new_width = (new_height as f64 * ratio) as u32;
+        let new_width = (new_height as f64 * target_ratio) as u32;
         let total_border = new_width.saturating_sub(width);
         let side_border = total_border / 2;
         add_border(&with_tb, side_border, side_border, 0, 0, color)
@@ -160,9 +158,8 @@ fn process(
                 .encode_image(&rgb)
                 .with_context(|| format!("failed to save to {}", output_path.display()))?;
         }
-        _ => {
-            rgb.save(&output_path)
-                .with_context(|| format!("failed to save to {}", output_path.display()))?;
+        all_else => {
+            panic!("Not sure how to save files with extension {all_else}");
         }
     }
 
@@ -178,8 +175,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
 
     assert!(
-        (args.top_wide + args.bottom_wide - 1.0).abs() < 1e-9,
-        "top_wide + bottom_wide must equal 1.0"
+        (args.fraction_bottom + args.fraction_top - 1.0).abs() < 1e-9,
+        "fraction_bottom + fraction_top must equal 1.0"
     );
 
     let output_dir = PathBuf::from(&args.output_dir);
@@ -189,16 +186,15 @@ fn main() -> Result<()> {
         if let Err(e) = process(
             &file,
             &output_dir,
-            args.top,
-            args.bottom,
-            args.side,
-            args.top_wide,
-            args.bottom_wide,
-            args.ratio,
+            args.default_horizontal,
+            args.default_vertical,
+            args.fraction_top,
+            args.fraction_bottom,
+            args.target_ratio,
             args.quality,
             args.color.0,
         ) {
-            warn!("error processing {file}: {e:#}");
+            error!("error processing {file}: {e:#}");
         }
     }
 
