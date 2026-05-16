@@ -126,9 +126,14 @@ fn process(
     let with_sides = add_border(&img, border, border, 0, 0, color);
     let current_ratio = with_sides.width() as f64 / height as f64;
 
+    const JPEG_MAX_DIM: u32 = 65535; // 2**16
+
     let result = if current_ratio >= target_ratio {
         let new_width = with_sides.width();
         let new_height = (new_width as f64 / target_ratio) as u32;
+        if new_height > JPEG_MAX_DIM {
+            anyhow::bail!("output height {new_height} exceeds JPEG maximum of {JPEG_MAX_DIM}");
+        }
         let total_border = new_height.saturating_sub(height);
         let border_top = (total_border as f64 * fraction_top) as u32;
         let border_bottom = (total_border as f64 * fraction_bottom) as u32;
@@ -139,6 +144,9 @@ fn process(
         let with_tb = add_border(&img, 0, 0, border_top, border_bottom, color);
         let new_height = with_tb.height();
         let new_width = (new_height as f64 * target_ratio) as u32;
+        if new_width > JPEG_MAX_DIM {
+            anyhow::bail!("output width {new_width} exceeds JPEG maximum of {JPEG_MAX_DIM}");
+        }
         let total_border = new_width.saturating_sub(width);
         let side_border = total_border / 2;
         add_border(&with_tb, side_border, side_border, 0, 0, color)
