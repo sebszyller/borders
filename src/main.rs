@@ -99,6 +99,28 @@ fn add_border(
     out
 }
 
+fn save_image(result: RgbaImage, output_path: &Path, quality: u8) -> Result<()> {
+    let rgb = image::DynamicImage::ImageRgba8(result).into_rgb8();
+    let ext = output_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "jpg" | "jpeg" => {
+            let mut f = std::fs::File::create(output_path)
+                .with_context(|| format!("failed to create {}", output_path.display()))?;
+            JpegEncoder::new_with_quality(&mut f, quality)
+                .encode_image(&rgb)
+                .with_context(|| format!("failed to save to {}", output_path.display()))?;
+        }
+        all_else => {
+            panic!("Not sure how to save files with extension {all_else}");
+        }
+    }
+    Ok(())
+}
+
 fn process(
     file: &str,
     output_dir: &Path,
@@ -152,25 +174,7 @@ fn process(
         add_border(&with_tb, side_border, side_border, 0, 0, color)
     };
 
-    let rgb = image::DynamicImage::ImageRgba8(result).into_rgb8();
-    let ext = output_path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_lowercase();
-    match ext.as_str() {
-        "jpg" | "jpeg" => {
-            let mut f = std::fs::File::create(&output_path)
-                .with_context(|| format!("failed to create {}", output_path.display()))?;
-            JpegEncoder::new_with_quality(&mut f, quality)
-                .encode_image(&rgb)
-                .with_context(|| format!("failed to save to {}", output_path.display()))?;
-        }
-        all_else => {
-            panic!("Not sure how to save files with extension {all_else}");
-        }
-    }
-
+    save_image(result, &output_path, quality)?;
     info!("Saved to {}", output_path.display());
     Ok(())
 }
